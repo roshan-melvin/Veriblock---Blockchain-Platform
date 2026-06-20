@@ -1,0 +1,12 @@
+@import './styles/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-void text-primary font-body antialiased min-h-screen selection:bg-panel-raised;
+    margin: 0;
+  }
+}

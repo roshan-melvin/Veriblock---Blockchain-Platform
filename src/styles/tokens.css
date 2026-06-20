@@ -1,0 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-void: #0B0F14; /* main app background — dark HQ */
+  --bg-panel: #131B22; /* card/panel surface */
+  --bg-panel-raised: #1B2530; /* hover/raised surface */
+  --border-hairline: #28323D;
+  --text-primary: #E8EDF2;
+  --text-dim: #8A97A3;
+  --state-verified: #2BD97C; /* "Cyber Green" — verified / authentic */
+  --state-tampered: #FF4D4F; /* "Alert Red" — tampered / invalid */
+  --state-unverified: #F5A623; /* "Amber" — unverified / pending */
+  --accent-gold: #D4AF37; /* signature-verified lock, achievement highlights */
+}
