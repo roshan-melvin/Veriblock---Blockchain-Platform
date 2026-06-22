@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { storage } from '../engines/storage';
 import { MISSIONS } from '../data/missions';
 import type { InvestigatorProfile, Mission, MissionLevel, MissionResult } from '../types';
 
 export default function Missions() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<InvestigatorProfile | null>(null);
   const [activeTier, setActiveTier] = useState<MissionLevel>('beginner');
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
@@ -30,18 +32,19 @@ export default function Missions() {
   const completedCount = completedMissionIds.size;
 
   // Determine tier locks based on completed count
+  // Beginner: 4 missions, Intermediate: 4, Advanced: 5, Expert: 2
   const isTierLocked = (tier: MissionLevel): boolean => {
     if (tier === 'beginner') return false;
-    if (tier === 'intermediate') return completedCount < 3;
-    if (tier === 'advanced') return completedCount < 6;
-    if (tier === 'expert') return completedCount < 9;
+    if (tier === 'intermediate') return completedCount < 3;  // need ≥3 beginner done
+    if (tier === 'advanced') return completedCount < 7;      // need ≥7 total done
+    if (tier === 'expert') return completedCount < 12;       // need ≥12 total done
     return true;
   };
 
   const getTierUnlockRequirement = (tier: MissionLevel): number => {
     if (tier === 'intermediate') return 3;
-    if (tier === 'advanced') return 6;
-    if (tier === 'expert') return 9;
+    if (tier === 'advanced') return 7;
+    if (tier === 'expert') return 12;
     return 0;
   };
 
@@ -164,11 +167,12 @@ export default function Missions() {
         <div className="flex items-center gap-3 bg-panel border border-hairline rounded-lg px-4 py-3 w-full md:w-auto font-mono text-xs">
           <div className="flex-1">
             <p className="text-[10px] text-dim uppercase">Training Progress</p>
-            <p className="text-gold font-bold">{completedCount} / 12 cases closed</p>
+            <p className="text-gold font-bold">{completedCount} / 15 cases closed</p>
           </div>
           <button
             onClick={handleResetAllProgress}
-            className="text-[9px] border border-hairline hover:border-tampered/50 text-dim hover:text-tampered px-2 py-1.5 rounded transition-all bg-void"
+            aria-label="Reset all mission progress"
+            className="text-[9px] border border-hairline hover:border-tampered/50 text-dim hover:text-tampered px-2 py-1.5 rounded transition-all bg-void focus:outline-none focus:ring-1 focus:ring-tampered"
           >
             Reset Progress
           </button>
@@ -186,8 +190,11 @@ export default function Missions() {
           return (
             <button
               key={tier}
-              onClick={() => setActiveTier(tier)}
-              className={`p-3 rounded-lg border text-left transition-all focus:outline-none relative overflow-hidden flex flex-col justify-between min-h-[70px] ${
+              onClick={() => !locked && setActiveTier(tier)}
+              aria-pressed={active}
+              aria-disabled={locked}
+              aria-label={locked ? `${tier} tier — locked, complete ${getTierUnlockRequirement(tier)} missions to unlock` : `${tier} tier — ${completedInTier} of ${count} completed`}
+              className={`p-3 rounded-lg border text-left transition-all focus:outline-none focus:ring-1 focus:ring-gold relative overflow-hidden flex flex-col justify-between min-h-[70px] ${
                 active
                   ? 'border-gold bg-panel text-gold shadow-md'
                   : locked
@@ -296,7 +303,8 @@ export default function Missions() {
 
                   <button
                     onClick={() => setSelectedMission(mission)}
-                    className={`w-full mt-4 text-[10px] font-mono font-bold uppercase py-2 px-3 rounded transition-colors ${
+                    aria-label={completed ? `Review case details for ${mission.title}` : `Open case file for ${mission.title}`}
+                    className={`w-full mt-4 text-[10px] font-mono font-bold uppercase py-2 px-3 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-gold ${
                       completed
                         ? 'border border-verified/30 text-verified hover:bg-verified/5 hover:border-verified/50'
                         : 'bg-gold text-void hover:bg-gold/90'
@@ -313,13 +321,20 @@ export default function Missions() {
 
       {/* Case Briefing Modal */}
       {selectedMission && (
-        <div className="fixed inset-0 bg-void/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 bg-void/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mission-modal-title"
+          onClick={e => { if (e.target === e.currentTarget) setSelectedMission(null); }}
+        >
           <div className="bg-panel border border-hairline rounded-lg p-6 max-w-lg w-full relative animate-fade-in-up max-h-[90vh] overflow-y-auto">
             
             {/* Close Button */}
             <button
               onClick={() => setSelectedMission(null)}
-              className="absolute top-4 right-4 text-dim hover:text-primary text-sm font-mono focus:outline-none"
+              aria-label="Close mission briefing"
+              className="absolute top-4 right-4 text-dim hover:text-primary text-sm font-mono focus:outline-none focus:ring-1 focus:ring-gold rounded"
             >
               ✕ Close
             </button>
@@ -329,7 +344,7 @@ export default function Missions() {
               <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border uppercase ${getDifficultyColor(selectedMission.level)}`}>
                 {selectedMission.level}
               </span>
-              <h3 className="text-base font-display font-bold text-primary mt-2">
+              <h3 id="mission-modal-title" className="text-base font-display font-bold text-primary mt-2">
                 {selectedMission.title}
               </h3>
             </div>
@@ -363,27 +378,38 @@ export default function Missions() {
               </div>
             </div>
 
+            {/* Core Action: Launch real gameplay */}
+            <button
+              onClick={() => {
+                setSelectedMission(null);
+                navigate(`/missions/${selectedMission.id}`);
+              }}
+              className="w-full mb-5 bg-gold hover:bg-gold/90 text-void font-mono font-bold py-3 px-4 rounded-lg text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-gold"
+            >
+              <span>🔍</span> Launch Forensic Investigation
+            </button>
+
             {/* Dev Simulation Control */}
-            <div className="bg-void/50 border border-hairline rounded-lg p-4 text-center font-mono">
-              <p className="text-[10px] text-dim font-bold uppercase mb-2">Simulate Forensic Analysis</p>
-              <p className="text-[10px] text-dim/80 mb-3 leading-relaxed">
-                As direct mission investigation is undergoing development, you can simulate performing the cryptographic audit to record the findings.
+            <div className="bg-void/50 border border-hairline/60 rounded-lg p-4 text-center font-mono">
+              <p className="text-[9px] text-dim font-bold uppercase mb-1">Simulator & Diagnostic Tools</p>
+              <p className="text-[9px] text-dim/70 mb-3 leading-relaxed">
+                HQ training simulation controls. Useful for quick verification tests.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   onClick={() => handleSimulateComplete(selectedMission)}
-                  className="flex-1 bg-gold hover:bg-gold/90 text-void font-bold py-2 px-4 rounded text-xs uppercase tracking-wider transition-colors"
+                  className="flex-1 bg-panel hover:bg-panel-raised border border-hairline hover:border-gold/40 text-dim hover:text-gold font-bold py-2 px-3 rounded text-[10px] uppercase transition-colors"
                 >
-                  {completedMissionIds.has(selectedMission.id) ? 'Re-verify & Save' : 'Complete Verification'}
+                  {completedMissionIds.has(selectedMission.id) ? 'Simulate Re-verify' : 'Simulate Success'}
                 </button>
                 
                 {completedMissionIds.has(selectedMission.id) && (
                   <button
                     onClick={() => handleResetSingleMission(selectedMission)}
-                    className="flex-1 border border-hairline hover:border-tampered/40 text-tampered py-2 px-4 rounded text-xs uppercase transition-colors"
+                    className="flex-1 border border-hairline hover:border-tampered/40 text-tampered py-2 px-3 rounded text-[10px] uppercase transition-colors"
                   >
-                    Reset Case Status
+                    Reset Status
                   </button>
                 )}
               </div>

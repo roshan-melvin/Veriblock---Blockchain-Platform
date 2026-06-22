@@ -21,6 +21,11 @@ const TRUSTED_PUBLISHERS_INFO = [
 ];
 
 export default function SignaturePanel() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const missionId = searchParams.get('missionId');
+  const activeMission = missionId ? MISSIONS.find(m => m.id === missionId) : null;
+
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'verify' | 'sign'>('verify');
@@ -47,6 +52,89 @@ export default function SignaturePanel() {
     resolvedKeyJwk: JsonWebKey | null;
     errorMessage?: string;
   } | null>(null);
+
+  // Setup active mission parameters automatically
+  useEffect(() => {
+    async function setupActiveMissionVerification() {
+      if (!activeMission || publishers.length === 0) return;
+
+      const content = activeMission.signedAssetContent || '';
+      const claimedPubId = activeMission.signedAssetPublisherId || '';
+      const isTampered = activeMission.signedAssetTampered;
+
+      // Find the publisher in our loaded keys
+      let publisher = publishers.find(p => p.id === claimedPubId);
+
+      // Default to first publisher if not found, or use custom
+      if (!publisher && claimedPubId) {
+        try {
+          const tempPair = await generatePublisherKeyPair();
+          const tempPrivate = tempPair.privateKey;
+          const sig = await signContent(tempPrivate, content);
+          
+          setVerifyPublisherId('custom');
+          setVerifyContentText(content);
+          
+          // Export public key to show in custom JWK field
+          const tempPubJwk = await exportKeyToJwk(tempPair.publicKey);
+          setVerifyCustomJwkText(JSON.stringify(tempPubJwk, null, 2));
+          setVerifySignatureBase64(sig);
+          return;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      if (publisher && publisher.privateKeyJwk) {
+        try {
+          const privateKey = await importPrivateKeyFromJwk(publisher.privateKeyJwk);
+          
+          if (isTampered) {
+            // For a tampered asset, sign the content, but modify it in the verification box
+            const signature = await signContent(privateKey, content);
+            setVerifyContentText(content + " "); // Add trailing space to break signature verification
+            setVerifyPublisherId(claimedPubId);
+            setVerifySignatureBase64(signature);
+          } else {
+            const signature = await signContent(privateKey, content);
+            setVerifyContentText(content);
+            setVerifyPublisherId(claimedPubId);
+            setVerifySignatureBase64(signature);
+          }
+        } catch (err) {
+          console.error('Error signing active mission asset:', err);
+        }
+      }
+    }
+
+    if (!loading && publishers.length > 0) {
+      setupActiveMissionVerification();
+    }
+  }, [activeMission, publishers, loading]);
+
+  const handleLogStep = () => {
+    if (!missionId) return;
+    try {
+      const existingStepsStr = localStorage.getItem('veriblock:v1:activeMissionSteps') || '[]';
+      const existingSteps = JSON.parse(existingStepsStr);
+      
+      const updatedSteps = existingSteps.filter((s: any) => s.step !== 'signature');
+      
+      const stateText = verificationState === 'success' ? 'VALID' : 'INVALID/UNTRUSTED';
+      
+      updatedSteps.push({
+        step: 'signature',
+        action: `Verified digital signature of claimed publisher ${verifyPublisherId === 'custom' ? 'Custom/Untrusted' : verifyPublisherId}. Signature was found to be ${stateText}.`,
+        result: 'pass',
+        timestamp: new Date().toISOString()
+      });
+      
+      localStorage.setItem('veriblock:v1:activeMissionSteps', JSON.stringify(updatedSteps));
+      navigate(`/missions/${missionId}`);
+    } catch (e) {
+      console.error('Failed to log step', e);
+    }
+  };
 
   // Load or generate publisher keys
   useEffect(() => {
@@ -210,6 +298,27 @@ export default function SignaturePanel() {
           Cryptographically sign articles and verify publisher provenance using ECDSA (P-256) keypairs.
         </p>
       </div>
+
+      {/* Active Mission Banner */}
+      {activeMission && (
+        <div className="bg-gold/10 border border-gold/30 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in-up">
+          <div>
+            <p className="text-xs font-mono font-bold text-gold uppercase tracking-wider">
+              Investigation Mode Active · Case #{activeMission.id.slice(0, 8)}
+            </p>
+            <p className="text-[11px] text-dim leading-snug mt-1">
+              Verify the publisher&apos;s digital signature against the trusted registry to authenticate the sender and content integrity. Log this check when finished.
+            </p>
+          </div>
+          <button
+            onClick={handleLogStep}
+            disabled={verificationState === 'idle' || verificationState === 'verifying'}
+            className="bg-gold text-void hover:bg-gold/90 disabled:opacity-50 disabled:cursor-not-allowed font-mono font-bold py-1.5 px-3 rounded text-[10px] uppercase tracking-wider transition-colors shrink-0"
+          >
+            ✓ Log Signature Check to Case File
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 bg-panel border border-hairline rounded-lg">

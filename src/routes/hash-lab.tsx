@@ -44,7 +44,7 @@ export default function HashLab() {
   const [bitDiff, setBitDiff] = useState(0);
   const [showEducation, setShowEducation] = useState(true);
   const prevInputRef = useRef(input);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Live hash computation with debounce
   const computeHash = useCallback(async (text: string) => {
@@ -271,7 +271,7 @@ export default function HashLab() {
               <div className="mt-4 pt-3 border-t border-hairline/50">
                 <p className="text-[9px] font-mono text-dim uppercase mb-2">Bit Shatter Map</p>
                 <div className="flex flex-wrap gap-px" aria-hidden="true">
-                  {hash.split('').map((char, i) => {
+                  {hash.split('').map((_, i) => {
                     const isChanged = changedIndices.has(i);
                     return (
                       <div
